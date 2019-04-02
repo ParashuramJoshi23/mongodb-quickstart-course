@@ -7,6 +7,10 @@ import services.data_service as svc
 from program_hosts import success_msg, error_msg
 import infrastructure.state as state
 
+from data.snakes import Snake
+
+from data.cages import Cage
+
 
 def run():
     print(' ****************** Welcome guest **************** ')
@@ -25,6 +29,8 @@ def run():
             s.case('y', view_your_snakes)
             s.case('b', book_a_cage)
             s.case('v', view_bookings)
+            s.case('u', add_multiple_snakes)
+            s.case('r', add_review_rating)
             s.case('m', lambda: 'change_mode')
 
             s.case('?', show_commands)
@@ -50,6 +56,8 @@ def show_commands():
     print('[A]dd a snake')
     print('View [y]our snakes')
     print('[V]iew your bookings')
+    print('[U] Add multiple snakes')
+    print('[R] add_review_rating')
     print('[M]ain menu')
     print('e[X]it app')
     print('[?] Help (this info)')
@@ -162,10 +170,61 @@ def view_bookings():
     bookings = svc.get_bookings_for_user(state.active_account.email)
 
     print("You have {} bookings.".format(len(bookings)))
-    for b in bookings:
-        print(' * Snake: {} is booked at {} from {} for {} days.'.format(
+    for idx, b in enumerate(bookings):
+        print(' * {} Snake: {} is booked at {} from {} for {} days.'.format(
+            idx + 1,
             snakes.get(b.guest_snake_id).name,
             b.cage.name,
             datetime.date(b.check_in_date.year, b.check_in_date.month, b.check_in_date.day),
             (b.check_out_date - b.check_in_date).days
         ))
+
+
+def add_multiple_snakes():
+    number = int(input('Enter number of snakes you want to store'))
+    i = 0
+    snakes = []
+    while i < number:
+        print(f"Enter the details of {i}snake")
+        name = input("What is your snake's name? ")
+        length = float(input('How long is your snake (in meters)? '))
+        species = input("Species? ")
+        is_venomous = input("Is your snake venomous [y]es, [n]o? ").lower().startswith('y')
+        snake = Snake()
+        snake.name = name
+        snake.length = length
+        snake.species = species
+        snake.is_venomous = is_venomous
+        snakes.append(snake)
+        i += 1
+
+    Snake.objects.insert(snakes)
+
+    count = Snake.objects.all().count()
+    print(f'Number of snakes {count}')
+
+
+def add_review_rating():
+
+    account = state.active_account
+
+    if not account:
+        error_msg("You must log in first to view your snakes")
+        return
+
+    view_bookings()
+    booking_num = int(input('Select booking to rate and review: '))
+    bookings = svc.get_bookings_for_user(account.email)
+    booking = bookings[booking_num - 1]
+
+    rating = int(input('Enter the rating from 1 to 5: '))
+    review = input('Enter the review for the booking: ')
+
+    booking.rating = rating
+    booking.review = review
+
+    cage = Cage.objects.get(id=booking.cage.id)
+    cage.bookings.append(booking)
+    cage.save()
+
+    print('Your rating and review saved successfully, Thanks for booking')
